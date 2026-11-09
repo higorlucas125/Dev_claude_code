@@ -43,7 +43,7 @@ Abra a pasta raiz no Android Studio e aguarde o Gradle sincronizar.
 ### Regras aplicadas no GitHub
 
 - **`main` só recebe PR de `release/*`**, e **`develop` só recebe PR de `feature/*`, `bug/*`, `fix/*` ou `hotfix/*`**. O workflow `.github/workflows/branch-policy.yml` (check **Validar branch de origem**) reprova qualquer outra combinação.
-- Os rulesets **Proteção main** e **Proteção develop** (*Settings → Rules → Rulesets*) exigem PR para qualquer mudança, exigem os checks **Validar branch de origem** e **Lint, testes e build** passando e bloqueiam force push e exclusão da branch.
+- Os rulesets **Proteção main** e **Proteção develop** ficam em `.github/rulesets/`. Para ativar: *Settings → Rules → Rulesets → New ruleset → Import a ruleset* e selecione cada JSON. Eles exigem PR para qualquer mudança, exigem os checks **Validar branch de origem** e **Lint, testes e build** passando e bloqueiam force push e exclusão da branch.
 - Depois que uma `release/*` entra na `main`, a `develop` não recebe o bump de versão automaticamente: faça o mesmo ajuste de `VERSION_NAME`/`VERSION_CODE` em uma `fix/*` para a `develop`.
 
 Exemplo de ciclo:
