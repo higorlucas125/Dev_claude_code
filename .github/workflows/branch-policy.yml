@@ -1,0 +1,55 @@
+name: Política de branches
+
+# Garante o fluxo Gitflow nos pull requests:
+#   main    <- somente release/*
+#   develop <- somente feature/*, bug/*, fix/* e hotfix/*
+# Este check é obrigatório pelas regras de proteção de main e develop.
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    types: [opened, reopened, synchronize, edited]
+
+permissions: {}
+
+jobs:
+  validar:
+    name: Validar branch de origem
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Conferir origem e destino do PR
+        env:
+          ORIGEM: ${{ github.head_ref }}
+          DESTINO: ${{ github.base_ref }}
+        run: |
+          echo "PR: $ORIGEM -> $DESTINO"
+
+          case "$DESTINO" in
+            main)
+              PERMITIDAS="release/*"
+              case "$ORIGEM" in
+                release/?*) ok=1 ;;
+                *) ok=0 ;;
+              esac
+              ;;
+            develop)
+              PERMITIDAS="feature/*, bug/*, fix/* ou hotfix/*"
+              case "$ORIGEM" in
+                feature/?*|bug/?*|fix/?*|hotfix/?*) ok=1 ;;
+                *) ok=0 ;;
+              esac
+              ;;
+            *)
+              echo "Destino $DESTINO não é controlado por esta política."
+              exit 0
+              ;;
+          esac
+
+          if [ "$ok" = "1" ]; then
+            echo "✅ Branch '$ORIGEM' pode abrir PR para '$DESTINO'."
+          else
+            echo "::error title=Branch não permitida::A branch '$ORIGEM' não pode abrir PR para '$DESTINO'. Permitidas: $PERMITIDAS."
+            exit 1
+          fi

@@ -1,0 +1,69 @@
+name: Pipeline de feature
+
+# Em todo push para feature/*, bug/*, fix/* ou hotfix/*:
+#   1. roda lint, testes e build;
+#   2. se passar, abre o pull request para develop (se ainda não existir).
+# O PR dispara o CI e a política de branches de novo antes do merge.
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'bug/**'
+      - 'fix/**'
+      - 'hotfix/**'
+
+concurrency:
+  group: feature-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    name: Build da branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        uses: ./.github/actions/build-android
+
+  abrir-pr:
+    name: Abrir PR para develop
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Criar pull request
+        env:
+          # PR_TOKEN (token pessoal) faz o PR disparar o CI; sem ele usa o GITHUB_TOKEN.
+          GH_TOKEN: ${{ secrets.PR_TOKEN || github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          MENSAGEM: ${{ github.event.head_commit.message }}
+        run: |
+          aberto=$(gh pr list -R "$REPO" --head "$BRANCH" --base develop --state open --json number --jq 'length')
+          if [ "$aberto" != "0" ]; then
+            echo "Já existe PR aberto de $BRANCH para develop; o push atualizou o PR."
+            exit 0
+          fi
+
+          tipo="${BRANCH%%/*}"
+          nome="${BRANCH#*/}"
+          titulo="$tipo: ${nome//-/ }"
+
+          cat > corpo.md <<EOF
+          PR aberto automaticamente pelo **Pipeline de feature** depois do build passar em \`$BRANCH\`.
+
+          **Último commit:**
+          > ${MENSAGEM%%$'\n'*}
+
+          Antes do merge, o CI e a política de branches rodam de novo neste PR.
+          EOF
+
+          gh pr create -R "$REPO" --base develop --head "$BRANCH" \
+            --title "$titulo" --body-file corpo.md

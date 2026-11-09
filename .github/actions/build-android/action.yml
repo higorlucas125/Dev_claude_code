@@ -1,0 +1,43 @@
+name: Build Android
+description: Configura JDK/Gradle e roda lint, testes unitários e o build de debug.
+
+runs:
+  using: composite
+  steps:
+    - name: Configurar JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+
+    - name: Configurar Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    - name: Lint
+      shell: bash
+      run: ./gradlew lintDebug
+
+    - name: Testes unitários
+      shell: bash
+      run: ./gradlew testDebugUnitTest
+
+    - name: Build APK de debug
+      shell: bash
+      run: ./gradlew assembleDebug
+
+    - name: Publicar relatórios
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: relatorios
+        path: |
+          app/build/reports/
+          app/build/test-results/
+        if-no-files-found: ignore
+
+    - name: Publicar APK de debug
+      uses: actions/upload-artifact@v4
+      with:
+        name: apk-debug
+        path: app/build/outputs/apk/debug/*.apk
+        if-no-files-found: ignore
