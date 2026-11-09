@@ -1,21 +1,40 @@
+# Gradle
 .gradle
 **/build/
 !**/src/**/build/
-
-# Ignore Gradle GUI config
 gradle-app.setting
-
-# Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
 !gradle-wrapper.jar
-
-# Avoid ignore Gradle wrapper properties
 !gradle-wrapper.properties
-
-# Cache of project
 .gradletasknamecache
+.kotlin/
 
-# Eclipse Gradle plugin generated files
-# Eclipse Core
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.navigation/
+captures/
+.externalNativeBuild
+.cxx
+
+# Configuração local (caminho do SDK)
+local.properties
+
+# Eclipse
 .project
-# JDT-specific (Eclipse Java Development Tools)
 .classpath
+.settings/
+
+# Chaves de assinatura: nunca versionar
+*.jks
+*.keystore
+keystore.properties
+
+# Artefatos
+*.apk
+*.aab
+*.ap_
+dist/
+
+# Sistema
+.DS_Store
+Thumbs.db
