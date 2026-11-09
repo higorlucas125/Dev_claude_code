@@ -44,7 +44,6 @@ Abra a pasta raiz no Android Studio e aguarde o Gradle sincronizar.
 
 - **`main` só recebe PR de `release/*`**, e **`develop` só recebe PR de `feature/*`, `bug/*`, `fix/*` ou `hotfix/*`**. O workflow `.github/workflows/branch-policy.yml` (check **Validar branch de origem**) reprova qualquer outra combinação.
 - Os rulesets **Proteção main** e **Proteção develop** ficam em `.github/rulesets/`. Para ativar: *Settings → Rules → Rulesets → New ruleset → Import a ruleset* e selecione cada JSON. Eles exigem PR para qualquer mudança, exigem os checks **Validar branch de origem** e **Lint, testes e build** passando e bloqueiam force push e exclusão da branch.
-- Depois que uma `release/*` entra na `main`, a `develop` não recebe o bump de versão automaticamente: faça o mesmo ajuste de `VERSION_NAME`/`VERSION_CODE` em uma `fix/*` para a `develop`.
 
 Exemplo de ciclo:
 
@@ -53,21 +52,52 @@ Exemplo de ciclo:
 git checkout develop && git pull
 git checkout -b feature/lista-de-compras
 # ... commits ...
-git push -u origin feature/lista-de-compras   # abra PR para develop
+git push -u origin feature/lista-de-compras
 
-# preparar versão
-git checkout develop && git pull
-git checkout -b release/0.2.0
-# edite VERSION_NAME=0.2.0 e incremente VERSION_CODE em gradle.properties
-git commit -am "chore: versão 0.2.0"
-git push -u origin release/0.2.0              # abra PR para main
-# depois do merge na main, leve o bump de versão para a develop via fix/*
+# o Pipeline de feature roda o build e abre o PR para develop sozinho;
+# depois do merge, o Pipeline de release abre o PR release/<versão> -> main
 ```
 
-## GitHub Actions
+## GitHub Actions — fluxo automático
 
-- **CI** (`.github/workflows/ci.yml`): em push para `develop`, `feature/*`, `release/*`, `hotfix/*` e em PRs para `main`/`develop`. Roda lint, testes unitários e gera o APK de debug (disponível nos artefatos do workflow).
-- **Release** (`.github/workflows/release.yml`): em push na `main`. Lê `VERSION_NAME` do `gradle.properties`, gera APK e AAB de release e cria a tag `v<versão>` com a GitHub Release. Se a tag já existir, o workflow não faz nada, então lembre de subir a versão na branch `release/*` ou `hotfix/*`.
+```
+push em feature/* | bug/* | fix/* | hotfix/*
+  └─ Pipeline de feature: lint + testes + build
+       └─ passou → abre PR para develop
+            └─ CI + Política de branches rodam de novo no PR
+                 └─ merge na develop
+                      └─ Pipeline de release: lint + testes + build
+                           └─ passou → cria/atualiza release/<versão> e abre PR para main
+                                └─ CI + Política de branches no PR
+                                     └─ merge na main
+                                          └─ Release: APK/AAB + tag v<versão> + GitHub Release
+```
+
+| Workflow | Arquivo | Quando roda |
+|---|---|---|
+| Pipeline de feature | `feature-pipeline.yml` | push em `feature/*`, `bug/*`, `fix/*`, `hotfix/*` |
+| CI | `ci.yml` | PR para `develop` ou `main` |
+| Política de branches | `branch-policy.yml` | PR para `develop` ou `main` |
+| Pipeline de release | `release-pipeline.yml` | push (merge) na `develop` |
+| Release | `release.yml` | push (merge) na `main` |
+
+Os passos de build ficam na action local `.github/actions/build-android`.
+
+### Versão
+
+A versão é calculada por `.github/scripts/proxima-versao.sh`:
+- se `VERSION_NAME` no `gradle.properties` for maior que a última tag, ela é usada. Para um bump de major/minor, edite `VERSION_NAME` (ex.: `0.2.0`) numa `feature/*` ou `fix/*`;
+- senão, sobe o patch da última tag (`v0.1.0` → `0.1.1`);
+- `VERSION_CODE` é calculado automaticamente e sempre cresce.
+
+Merges novos na develop antes da release sair atualizam a mesma `release/<versão>` e o mesmo PR.
+
+### Configuração necessária no GitHub (uma vez)
+
+1. **Token para os PRs automáticos.** PRs e pushes feitos com o `GITHUB_TOKEN` padrão *não disparam* outros workflows, então o CI não rodaria nos PRs automáticos. Crie um token *fine-grained* (*Settings da conta → Developer settings → Personal access tokens*) só para este repositório, com permissão de **Contents: Read and write**, **Pull requests: Read and write** e **Workflows: Read and write**, e salve como secret **`PR_TOKEN`** em *Settings → Secrets and variables → Actions*.
+2. **Permitir que o Actions crie PRs** (necessário só se usar sem `PR_TOKEN`): *Settings → Actions → General → Workflow permissions* → marque *Allow GitHub Actions to create and approve pull requests*.
+3. **Rulesets:** *Settings → Rules → Rulesets → New ruleset → Import a ruleset*, importando `.github/rulesets/protecao-main.json` e `.github/rulesets/protecao-develop.json`.
+4. *(Opcional)* *Settings → General → Automatically delete head branches*, para apagar as branches depois do merge.
 
 ### Assinatura da release
 
@@ -79,7 +109,3 @@ Sem configuração, a release sai assinada com a chave de debug (serve para test
 | `ANDROID_KEYSTORE_PASSWORD`  | senha da keystore                          |
 | `ANDROID_KEY_ALIAS`          | alias da chave                             |
 | `ANDROID_KEY_PASSWORD`       | senha da chave                             |
-
-### Proteção de branches (recomendado)
-
-Em *Settings → Branches*, proteja `main` e `develop`: exija PR e o check **CI / Lint, testes e build** passando antes do merge.
