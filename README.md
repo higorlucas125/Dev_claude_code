@@ -30,13 +30,21 @@ Abra a pasta raiz no Android Studio e aguarde o Gradle sincronizar.
 
 ## Fluxo de branches (Gitflow)
 
-| Branch       | Origem    | Destino do merge    | Uso                                   |
-|--------------|-----------|---------------------|---------------------------------------|
-| `main`       | —         | —                   | Código em produção; cada merge gera release |
-| `develop`    | `main`    | —                   | Integração das features               |
-| `feature/*`  | `develop` | `develop`           | Novas funcionalidades                 |
-| `release/*`  | `develop` | `main` e `develop`  | Preparação de versão (bump, ajustes)  |
-| `hotfix/*`   | `main`    | `main` e `develop`  | Correções urgentes em produção        |
+| Branch       | Criada a partir de | PR para   | Uso                                   |
+|--------------|--------------------|-----------|---------------------------------------|
+| `main`       | —                  | —         | Código em produção; cada merge gera release |
+| `develop`    | `main`             | —         | Integração                            |
+| `feature/*`  | `develop`          | `develop` | Novas funcionalidades                 |
+| `bug/*`      | `develop`          | `develop` | Correção de bug                       |
+| `fix/*`      | `develop`          | `develop` | Ajustes e correções pequenas          |
+| `hotfix/*`   | `develop`          | `develop` | Correção urgente (sai na próxima release) |
+| `release/*`  | `develop`          | `main`    | Preparação de versão (bump, ajustes)  |
+
+### Regras aplicadas no GitHub
+
+- **`main` só recebe PR de `release/*`**, e **`develop` só recebe PR de `feature/*`, `bug/*`, `fix/*` ou `hotfix/*`**. O workflow `.github/workflows/branch-policy.yml` (check **Validar branch de origem**) reprova qualquer outra combinação.
+- Os rulesets **Proteção main** e **Proteção develop** (*Settings → Rules → Rulesets*) exigem PR para qualquer mudança, exigem os checks **Validar branch de origem** e **Lint, testes e build** passando e bloqueiam force push e exclusão da branch.
+- Depois que uma `release/*` entra na `main`, a `develop` não recebe o bump de versão automaticamente: faça o mesmo ajuste de `VERSION_NAME`/`VERSION_CODE` em uma `fix/*` para a `develop`.
 
 Exemplo de ciclo:
 
@@ -53,7 +61,7 @@ git checkout -b release/0.2.0
 # edite VERSION_NAME=0.2.0 e incremente VERSION_CODE em gradle.properties
 git commit -am "chore: versão 0.2.0"
 git push -u origin release/0.2.0              # abra PR para main
-# depois do merge na main, faça merge da main de volta na develop
+# depois do merge na main, leve o bump de versão para a develop via fix/*
 ```
 
 ## GitHub Actions
