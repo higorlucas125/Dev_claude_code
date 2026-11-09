@@ -1,0 +1,28 @@
+name: CI
+
+# Valida todo pull request para develop ou main (roda de novo o build,
+# mesmo que ele já tenha passado no push da branch).
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Lint, testes e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        uses: ./.github/actions/build-android

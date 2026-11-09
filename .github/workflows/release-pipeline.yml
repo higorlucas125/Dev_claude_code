@@ -1,0 +1,90 @@
+name: Pipeline de release
+
+# Em todo merge na develop:
+#   1. roda lint, testes e build;
+#   2. calcula a próxima versão (veja .github/scripts/proxima-versao.sh);
+#   3. cria/atualiza a branch release/<versão> apontando para a develop;
+#   4. abre o pull request release/<versão> -> main (se ainda não existir).
+# Novos merges na develop antes da release sair atualizam a mesma branch/PR.
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+concurrency:
+  group: release-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    name: Build da develop
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        uses: ./.github/actions/build-android
+
+  preparar-release:
+    name: Criar branch e PR de release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Push com PR_TOKEN dispara os workflows na branch de release.
+          token: ${{ secrets.PR_TOKEN || github.token }}
+
+      - name: Calcular versão
+        id: versao
+        run: bash .github/scripts/proxima-versao.sh
+
+      - name: Criar/atualizar branch de release
+        env:
+          BRANCH: release/${{ steps.versao.outputs.version }}
+        run: |
+          git push --force origin "HEAD:refs/heads/$BRANCH"
+          echo "Branch $BRANCH aponta para $(git rev-parse --short HEAD)."
+
+      - name: Abrir PR para main
+        env:
+          GH_TOKEN: ${{ secrets.PR_TOKEN || github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: release/${{ steps.versao.outputs.version }}
+          TAG: ${{ steps.versao.outputs.tag }}
+          CODE: ${{ steps.versao.outputs.code }}
+        run: |
+          aberto=$(gh pr list -R "$REPO" --head "$BRANCH" --base main --state open --json number --jq 'length')
+          if [ "$aberto" != "0" ]; then
+            echo "PR de $BRANCH para main já existe; a branch foi atualizada."
+            exit 0
+          fi
+
+          ultima=$(git tag -l 'v*' --sort=-v:refname | head -n1)
+          if [ -n "$ultima" ]; then
+            mudancas=$(git log --no-merges --pretty='- %s' "$ultima"..HEAD)
+          else
+            mudancas=$(git log --no-merges --pretty='- %s' HEAD)
+          fi
+
+          {
+            echo "Release **$TAG** (versionCode $CODE), aberta automaticamente após o merge na develop."
+            echo
+            echo "Ao fazer o merge, o workflow **Release** gera o APK/AAB, cria a tag \`$TAG\` e publica a GitHub Release."
+            echo
+            echo "### Mudanças"
+            echo "$mudancas"
+          } > corpo.md
+
+          gh pr create -R "$REPO" --base main --head "$BRANCH" \
+            --title "release: $TAG" --body-file corpo.md
